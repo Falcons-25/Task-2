@@ -1,0 +1,65 @@
+import dash
+from dash import dcc, html
+from dash.dependencies import Output, Input
+import plotly.graph_objs as go
+import serial
+import csv
+ser=serial.Serial("COM5",baudrate=9600)
+csv=open(r"C:\Users\hrith.000\Desktop\distance12.csv",'a')
+app = dash.Dash(__name__)
+
+app.layout = html.Div(
+        [
+        html.H2("Live graph"),
+        dcc.Graph(id="live-graph", animate=True),
+        html.Div(id="distance-display"),
+        dcc.Interval(id="graph-update", interval=1000, n_intervals=0),
+           ]
+        )
+x_data=[]
+y_data=[]
+while True:    
+    @app.callback(Output("live-graph", "figure"), [Input("graph-update", "n_intervals")])
+    def update_graph(n):
+        global a
+        value=ser.readline()
+        valueInstring=str(value,'UTF-8')
+        a=valueInstring.replace(" ","")
+        a=a.split(',')
+        x_data.append(float(a[1]))
+        y_data.append(float(a[0]))
+        print(a)  
+        try:
+            while True:
+                value=ser.readline()
+                valueInstring=str(value,'UTF-8')
+                print(valueInstring)
+                valueInstring.strip(',')
+                csv.write(valueInstring)
+                csv.flush()
+        except serial.serialutil.SerialException as e:
+            print("COMPORT error")
+            csv.write("COMPORT error")
+            csv.flush()
+        except KeyboardInterrupt as e:
+            print("Program was stopped by keyboard interrupt")
+            csv.write("KeyboardInterrupt")
+            csv.flush()
+        layout = go.Layout(
+                title="Live graph",
+                xaxis=dict(range=[min(x_data),max(x_data)]),
+                yaxis=dict(range=[0,5]),)
+        trace = go.Scatter(
+            x=x_data,
+            y=y_data,
+            name="Data",
+            mode="lines+markers+text",
+            line={"color": "rgb(0, 255, 0)"},
+            marker={"color": "rgb(0, 255, 0)", "size": 5},
+            )
+        return {"data": [trace], "layout": layout}
+    @app.callback(Output("distance-display", "children"), [Input("graph-update", "n_intervals")])
+    def update_distance_display(n):
+        return f"Distance is: {a[0]}"
+    if __name__ == "__main__":
+        app.run_server(debug=True, port=8051,use_reloader=False)
